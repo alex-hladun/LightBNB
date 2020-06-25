@@ -17,7 +17,6 @@ const pool = new Pool({
  * @return {Promise<{}>} A promise to the user.
  */
 const getUserWithEmail = function(email) {
-
   return pool.query(`
     SELECT * FROM users WHERE email = $1
     `, [email])
@@ -48,14 +47,11 @@ exports.getUserWithId = getUserWithId;
  * @return {Promise<{}>} A promise to the user.
  */
 const addUser =  function(user) {
-  console.log(user);
-
   return pool.query(`
   INSERT INTO users (name, email, password) 
   VALUES ($1, $2, $3)
   RETURNING *;
   `, [user.name, user.email, user.password]).then((res) => {
-    console.log('user sign up response: ', res);
     return res.rows[0];
   });
 };
@@ -79,6 +75,7 @@ const getAllReservations = function(guest_id, limit = 10) {
   WHERE reservations.guest_id = $1
   AND reservations.end_date < now()::date
   GROUP BY properties.id, reservations.id
+  
   ORDER BY reservations.start_date
   LIMIT $2;
   `, [guest_id, limit]).then((res) => {
@@ -103,7 +100,7 @@ const getAllProperties = function(options, limit = 10) {
   let queryString = `
   SELECT properties.*, avg(property_reviews.rating) as average_rating
   FROM properties
-  JOIN property_reviews ON properties.id = property_id
+  LEFT JOIN property_reviews ON properties.id = property_id
   `;
 
   const nextParam = () => {
@@ -121,7 +118,7 @@ const getAllProperties = function(options, limit = 10) {
   }
   if (options.owner_id) {
     nextParam();
-    queryParams.push(`${options.owner_id}`);
+    queryParams.push(parseInt(options.owner_id));
     queryString += `properties.owner_id = $${queryParams.length} `;
   }
   if (options.minimum_price_per_night) {
@@ -164,9 +161,14 @@ exports.getAllProperties = getAllProperties;
  * @return {Promise<{}>} A promise to the property.
  */
 const addProperty = function(property) {
-  const propertyId = Object.keys(properties).length + 1;
-  property.id = propertyId;
-  properties[propertyId] = property;
-  return Promise.resolve(property);
+  return pool.query(`
+  INSERT INTO properties (owner_id, title, description, thumbnail_photo_url, cover_photo_url, parking_spaces,
+    number_of_bathrooms, number_of_bedrooms, cost_per_night, country, street, city, province, post_code) 
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+  RETURNING *;
+  `, [property.owner_id, property.title, property.description, property.thumbnail_photo_url, property.cover_photo_url, property.parking_spaces, property.number_of_bathrooms, property.number_of_bedrooms, property.cost_per_night, property.country, property.street, property.city, property.province, property.post_code]).then((res) => {
+    console.log('response when creating property', res.rows[0]);
+    return res.rows[0];
+  });
 };
 exports.addProperty = addProperty;
